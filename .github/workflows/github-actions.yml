@@ -2,7 +2,6 @@ name: assignment-autotest-test
 on: [push]
 
 jobs:
-<<<<<<< HEAD
   full-test:
     container: cuaesd/aesd-autotest:unit-test
     runs-on: ubuntu-latest
@@ -22,14 +21,3 @@ jobs:
         run: git submodule update --init --recursive
       - name: Run unit test
         run: ./unit-test.sh
-=======
-    unit-test:
-        container: cuaesd/aesd-autotest:24-unit-test
-        runs-on: self-hosted
-        steps:
-          - uses: actions/checkout@v2
-          - name: Checkout submodules
-            run : git submodule update --init --recursive
-          - name: Run unit test
-            run: ./unit-test.sh
->>>>>>> assignments-base/assignment3-part-1
