@@ -1,79 +1,6 @@
 name: assignment-autotest-test
 on: [push]
 jobs:
-<<<<<<< HEAD
-  qemu-test:
-    container: cuaesd/aesd-autotest:24-assignment3
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Checkout submodules
-        run: git submodule update --init --recursive
-      
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            gcc-aarch64-linux-gnu \
-            g++-aarch64-linux-gnu \
-            libssl-dev \
-            u-boot-tools \
-            bc \
-            bison \
-            flex \
-            libncurses-dev \
-            kmod \
-            cpio \
-            rsync
-          echo "Verifying cross-compiler installation..."
-          aarch64-linux-gnu-gcc --version
-      
-      - name: Create output directory
-        run: mkdir -p /tmp/aem-linux
-      
-      - name: Build kernel and rootfs
-        run: |
-          cd finder-app
-          chmod +x manual-linux.sh
-          ./manual-linux.sh /tmp/aem-linux
-        timeout-minutes: 120
-      
-      - name: Verify build artifacts
-        run: |
-          echo "Checking for required files..."
-          ls -lh /tmp/aem-linux/Image
-          ls -lh /tmp/aem-linux/initramfs.cpio.gz
-          echo "Build artifacts verified successfully"
-      
-      - name: Install QEMU
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y qemu-system-aarch64 qemu-system-arm
-          qemu-system-aarch64 --version
-      
-      - name: Run QEMU test
-        run: |
-          cd finder-app
-          chmod +x start-qemu-app.sh
-          ./start-qemu-app.sh /tmp/aem-linux
-        timeout-minutes: 120
-      
-      - name: Upload build artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kernel-rootfs-build
-          path: |
-            /tmp/aem-linux/Image
-            /tmp/aem-linux/initramfs.cpio.gz
-          retention-days: 7
-      
-      - name: Cleanup
-        if: always()
-        run: |
-          rm -rf /tmp/aem-linux
-=======
     unit-test:
         container: cuaesd/aesd-autotest:24-unit-test
         runs-on: self-hosted
@@ -83,4 +10,3 @@ jobs:
             run : git submodule update --init --recursive
           - name: Run unit test
             run: ./unit-test.sh
->>>>>>> assignments-base/assignment4
