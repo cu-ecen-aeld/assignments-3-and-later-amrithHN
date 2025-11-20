@@ -9,6 +9,25 @@ jobs:
       - name: Checkout submodules
         run: git submodule update --init --recursive
       
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu \
+            libssl-dev \
+            u-boot-tools \
+            bc \
+            bison \
+            flex \
+            libncurses-dev \
+            kmod \
+            cpio \
+            rsync
+          echo "Verifying cross-compiler installation..."
+          aarch64-linux-gnu-gcc --version
+      
       - name: Create output directory
         run: mkdir -p /tmp/aem-linux
       
@@ -25,6 +44,12 @@ jobs:
           ls -lh /tmp/aem-linux/Image
           ls -lh /tmp/aem-linux/initramfs.cpio.gz
           echo "Build artifacts verified successfully"
+      
+      - name: Install QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-aarch64 qemu-system-arm
+          qemu-system-aarch64 --version
       
       - name: Run QEMU test
         run: |
