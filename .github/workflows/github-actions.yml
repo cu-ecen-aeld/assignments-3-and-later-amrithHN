@@ -1,6 +1,7 @@
 name: assignment-autotest-test
 on: [push]
 jobs:
+<<<<<<< HEAD
   qemu-test:
     container: cuaesd/aesd-autotest:24-assignment3
     runs-on: ubuntu-latest
@@ -72,3 +73,14 @@ jobs:
         if: always()
         run: |
           rm -rf /tmp/aem-linux
+=======
+    unit-test:
+        container: cuaesd/aesd-autotest:24-unit-test
+        runs-on: self-hosted
+        steps:
+          - uses: actions/checkout@v2
+          - name: Checkout submodules
+            run : git submodule update --init --recursive
+          - name: Run unit test
+            run: ./unit-test.sh
+>>>>>>> assignments-base/assignment4
