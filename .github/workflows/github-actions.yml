@@ -36,7 +36,7 @@ jobs:
           cd finder-app
           chmod +x manual-linux.sh
           ./manual-linux.sh /tmp/aem-linux
-        timeout-minutes: 60
+        timeout-minutes: 120
       
       - name: Verify build artifacts
         run: |
@@ -56,7 +56,7 @@ jobs:
           cd finder-app
           chmod +x start-qemu-app.sh
           ./start-qemu-app.sh /tmp/aem-linux
-        timeout-minutes: 10
+        timeout-minutes: 120
       
       - name: Upload build artifacts
         if: always()
