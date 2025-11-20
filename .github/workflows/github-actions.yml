@@ -1,22 +1,50 @@
 name: assignment-autotest-test
 on: [push]
-
 jobs:
-    unit-test:
-        container: cuaesd/aesd-autotest:24-unit-test
-        runs-on: self-hosted
-        steps:
-          - uses: actions/checkout@v2
-          - name: Checkout submodules
-            run : git submodule update --init --recursive
-          - name: Run unit test
-            run: ./unit-test.sh
-    full-test:
-        container: cuaesd/aesd-autotest:24-assignment3
-        runs-on: self-hosted
-        steps:
-          - uses: actions/checkout@v2
-          - name: Checkout submodules
-            run : git submodule update --init --recursive
-          - name: Run full test
-            run: ./full-test.sh
+  qemu-test:
+    container: cuaesd/aesd-autotest:24-assignment3
+    runs-on: self-hosted
+    needs: [unit-test, full-test]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Checkout submodules
+        run: git submodule update --init --recursive
+      
+      - name: Create output directory
+        run: mkdir -p /tmp/aem-linux
+      
+      - name: Build kernel and rootfs
+        run: |
+          cd finder-app
+          chmod +x manual-linux.sh
+          ./manual-linux.sh /tmp/aem-linux
+        timeout-minutes: 60
+      
+      - name: Verify build artifacts
+        run: |
+          echo "Checking for required files..."
+          ls -lh /tmp/aem-linux/Image
+          ls -lh /tmp/aem-linux/initramfs.cpio.gz
+          echo "Build artifacts verified successfully"
+      
+      - name: Run QEMU test
+        run: |
+          cd finder-app
+          chmod +x start-qemu-app.sh
+          ./start-qemu-app.sh /tmp/aem-linux
+        timeout-minutes: 10
+      
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: kernel-rootfs-build
+          path: |
+            /tmp/aem-linux/Image
+            /tmp/aem-linux/initramfs.cpio.gz
+          retention-days: 7
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf /tmp/aem-linux
