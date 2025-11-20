@@ -4,7 +4,6 @@ jobs:
   qemu-test:
     container: cuaesd/aesd-autotest:24-assignment3
     runs-on: self-hosted
-    needs: [unit-test, full-test]
     steps:
       - uses: actions/checkout@v2
       - name: Checkout submodules
