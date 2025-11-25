@@ -15,10 +15,10 @@ CROSS_COMPILE=aarch64-none-linux-gnu-
 
 if [ $# -lt 1 ]
 then
-    echo "Using default directory ${OUTDIR} for output"
+	echo "Using default directory ${OUTDIR} for output"
 else
-    OUTDIR=$1
-    echo "Using passed directory ${OUTDIR} for output"
+	OUTDIR=$1
+	echo "Using passed directory ${OUTDIR} for output"
 fi
 
 mkdir -p ${OUTDIR}
@@ -29,17 +29,15 @@ if [ ! -d "${OUTDIR}/linux-stable" ]; then
     echo "CLONING GIT LINUX STABLE VERSION ${KERNEL_VERSION} IN ${OUTDIR}"
     git clone ${KERNEL_REPO} --depth 1 --single-branch --branch ${KERNEL_VERSION}
 fi
-
 if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     cd linux-stable
     echo "Checking out version ${KERNEL_VERSION}"
     git checkout ${KERNEL_VERSION}
-    
-    make ARCH=arm64 mrproper
-    make ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- defconfig
+
+    make -j4 ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- defconfig
     make -j4 ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- all
-    make ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- modules
-    make ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- dtbs
+    make -j4 ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- modules
+    make -j4 ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- dtbs
 fi
 
 echo "Adding the Image in outdir"
@@ -50,165 +48,66 @@ cd "$OUTDIR"
 if [ -d "${OUTDIR}/rootfs" ]
 then
     echo "Deleting rootfs directory at ${OUTDIR}/rootfs and starting over"
-    sudo rm -rf ${OUTDIR}/rootfs
+    sudo rm  -rf ${OUTDIR}/rootfs
 fi
 
-# Create necessary base directories
-echo "Creating root filesystem directory structure..."
-mkdir -p ${OUTDIR}/rootfs/bin
-mkdir -p ${OUTDIR}/rootfs/sbin
-mkdir -p ${OUTDIR}/rootfs/etc
-mkdir -p ${OUTDIR}/rootfs/lib
-mkdir -p ${OUTDIR}/rootfs/lib64
-mkdir -p ${OUTDIR}/rootfs/dev
-mkdir -p ${OUTDIR}/rootfs/proc
-mkdir -p ${OUTDIR}/rootfs/sys
-mkdir -p ${OUTDIR}/rootfs/tmp
-mkdir -p ${OUTDIR}/rootfs/usr/bin
-mkdir -p ${OUTDIR}/rootfs/usr/sbin
-mkdir -p ${OUTDIR}/rootfs/usr/lib
-mkdir -p ${OUTDIR}/rootfs/var/log
-mkdir -p ${OUTDIR}/rootfs/home
-mkdir -p ${OUTDIR}/rootfs/home/conf
+mkdir -p "$OUTDIR"/rootfs
 
+
+cd "$OUTDIR"/rootfs
+mkdir -p bin sbin etc proc sys dev lib lib64 tmp usr var home
+mkdir -p usr/bin usr/lib usr/sbin
+mkdir -p var/log
 cd "$OUTDIR"
+
 if [ ! -d "${OUTDIR}/busybox" ]
 then
-    echo "Cloning busybox..."
-    git clone git://busybox.net/busybox.git
+git clone git://busybox.net/busybox.git
     cd busybox
     git checkout ${BUSYBOX_VERSION}
+    make distclean
+    make defconfig
 else
     cd busybox
 fi
 
-# Configure busybox
-echo "Configuring busybox..."
-make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} defconfig
-sed -i 's/# CONFIG_STATIC is not set/CONFIG_STATIC=y/' .config
+make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE}
+make CONFIG_PREFIX="$OUTDIR"/rootfs ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} install
 
-# Make and install busybox
-echo "Building busybox..."
-make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} -j4
-echo "Installing busybox to rootfs..."
-make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} \
-    CONFIG_PREFIX=${OUTDIR}/rootfs install
+cd ${OUTDIR}/rootfs
 
-echo "Checking library dependencies..."
-${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "program interpreter" || true
-${CROSS_COMPILE}readelf -a ${OUTDIR}/rootfs/bin/busybox | grep "Shared library" || true
+echo "Library dependencies"
+${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
+${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
 
-# Add library dependencies to rootfs
-echo "Finding sysroot..."
-SYSROOT=$(${CROSS_COMPILE}gcc -print-sysroot)
-echo "SYSROOT is: ${SYSROOT}"
 
-if [ ! -d "${SYSROOT}" ]; then
-    echo "ERROR: SYSROOT directory not found: ${SYSROOT}"
-    exit 1
-fi
+cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image.gz ${OUTDIR}/rootfs/zImage
 
-# Copy interpreter
-echo "Copying program interpreter..."
-if [ -f ${SYSROOT}/lib/ld-linux-aarch64.so.1 ]; then
-    cp -v ${SYSROOT}/lib/ld-linux-aarch64.so.1 ${OUTDIR}/rootfs/lib/
-else
-    echo "WARNING: Program interpreter not found at ${SYSROOT}/lib/ld-linux-aarch64.so.1"
-    # Try alternative location
-    find ${SYSROOT} -name "ld-linux-aarch64.so.1" -exec cp -v {} ${OUTDIR}/rootfs/lib/ \;
-fi
+cp $(aarch64-none-linux-gnu-gcc --print-sysroot)/lib/ld-linux-aarch64.so.1 ${OUTDIR}/rootfs/lib
+cp $(aarch64-none-linux-gnu-gcc --print-sysroot)/lib64/libm.so.6 ${OUTDIR}/rootfs/lib64
+cp $(aarch64-none-linux-gnu-gcc --print-sysroot)/lib64/libresolv.so.2 ${OUTDIR}/rootfs/lib64
+cp $(aarch64-none-linux-gnu-gcc --print-sysroot)/lib64/libc.so.6 ${OUTDIR}/rootfs/lib64
 
-# Copy libraries
-echo "Copying required libraries..."
-LIBS=$(${CROSS_COMPILE}readelf -d ${OUTDIR}/rootfs/bin/busybox 2>/dev/null | grep "NEEDED" | awk '{print $5}' | tr -d '[]')
 
-if [ -n "$LIBS" ]; then
-    echo "Found libraries: $LIBS"
-    for lib in $LIBS; do
-        echo "Looking for $lib..."
-        LIB_PATH=$(find ${SYSROOT} -name "$lib" -type f | head -n 1)
-        if [ -n "$LIB_PATH" ]; then
-            echo "Copying $LIB_PATH to rootfs/lib/"
-            cp -v "$LIB_PATH" ${OUTDIR}/rootfs/lib/
-        else
-            echo "WARNING: Library $lib not found in sysroot"
-        fi
-    done
-else
-    echo "No dynamic libraries needed (static build)"
-fi
+sudo mknod -m 666 dev/null c 1 3
+sudo mknod -m 666 dev/console c 5 1
 
-# Copy lib64 if it exists
-if [ -d ${SYSROOT}/lib64 ]; then
-    echo "Copying lib64 directory..."
-    cp -av ${SYSROOT}/lib64/*.so* ${OUTDIR}/rootfs/lib64/ 2>/dev/null || true
-fi
-
-# Verify dependencies
-echo "Verifying library dependencies..."
-${CROSS_COMPILE}readelf -d ${OUTDIR}/rootfs/bin/busybox 2>/dev/null | grep NEEDED || echo "Static binary - no dependencies"
-
-# Make device nodes
-echo "Creating device nodes..."
-sudo mknod -m 0666 ${OUTDIR}/rootfs/dev/null c 1 3
-sudo mknod -m 0600 ${OUTDIR}/rootfs/dev/console c 5 1
-
-# Clean and build the writer utility
-echo "Building writer utility..."
 cd ${FINDER_APP_DIR}
 make clean
-make CROSS_COMPILE=${CROSS_COMPILE} all
+make CROSS_COMPILE=aarch64-none-linux-gnu-
 
-# Copy the finder related scripts and executables to the /home directory
-echo "Copying finder application files to rootfs..."
-sudo cp -fv writer ${OUTDIR}/rootfs/home/
-sudo cp -fv finder.sh ${OUTDIR}/rootfs/home/
-sudo cp -fv finder-test.sh ${OUTDIR}/rootfs/home/
-sudo cp -fv autorun-qemu.sh ${OUTDIR}/rootfs/home/
-sudo cp -fv conf/username.txt ${OUTDIR}/rootfs/home/conf/
-sudo cp -fv conf/assignment.txt ${OUTDIR}/rootfs/home/conf/
+cp writer  ${OUTDIR}/rootfs/home
+cp autorun-qemu.sh  ${OUTDIR}/rootfs/home
+cp finder-test.sh  ${OUTDIR}/rootfs/home
+cp finder.sh  ${OUTDIR}/rootfs/home
 
-# Set proper permissions
-echo "Setting permissions..."
-sudo chown root:root ${OUTDIR}/rootfs/bin/busybox
-sudo chmod 4755 ${OUTDIR}/rootfs/bin/busybox
+mkdir -p ${OUTDIR}/rootfs/home/conf
+cp -R ../conf/*  ${OUTDIR}/rootfs/home/conf
 
-# Make sure sh exists
-if [ -f ${OUTDIR}/rootfs/bin/sh ]; then
-    sudo chmod 755 ${OUTDIR}/rootfs/bin/sh
-fi
+cd ${OUTDIR}
+sudo chown -R root:root rootfs
 
-# Create init symlink
-echo "Creating init symlink..."
 cd ${OUTDIR}/rootfs
-sudo ln -sf bin/busybox init
-sudo chmod 755 init
-
-# Verify home directory contents before creating archive
-echo "=========================================="
-echo "Verifying /home directory contents:"
-ls -la ${OUTDIR}/rootfs/home/
-echo "Contents of /home/conf:"
-ls -la ${OUTDIR}/rootfs/home/conf/
-echo "=========================================="
-
-# Chown the root directory and create initramfs
-echo "Creating initramfs archive..."
-cd ${OUTDIR}/rootfs
-sudo find . -print0 | sudo cpio --null -ov --format=newc > ${OUTDIR}/initramfs.cpio
-echo "CPIO archive created successfully"
-
-# Create initramfs.cpio.gz
-echo "Compressing initramfs..."
+find . | cpio -H newc -ov --owner root:root > ${OUTDIR}/initramfs.cpio
 cd ${OUTDIR}
 gzip -f initramfs.cpio
-echo "Compression complete"
-
-echo "=========================================="
-echo "Build complete!"
-echo "Image: ${OUTDIR}/Image"
-echo "Initramfs: ${OUTDIR}/initramfs.cpio.gz"
-echo "=========================================="
-echo "Verifying /home in final archive:"
-gunzip -c ${OUTDIR}/initramfs.cpio.gz | cpio -t 2>/dev/null | grep "^home" | head -20
-echo "=========================================="
