@@ -7,7 +7,28 @@ jobs:
         steps:
           - uses: actions/checkout@v2
           - name: Checkout submodules
-            run : git submodule update --init --recursive
+            run: git submodule update --init --recursive
+          - name: Install build dependencies
+            run: |
+              apt-get update
+              apt-get install -y \
+                flex \
+                bison \
+                build-essential \
+                libssl-dev \
+                libelf-dev \
+                bc \
+                cpio \
+                gzip \
+                kmod \
+                libncurses-dev \
+                wget \
+                git \
+                make \
+                gcc \
+                g++ \
+                gcc-aarch64-linux-gnu \
+                binutils-aarch64-linux-gnu
           - name: Run unit test
             run: ./unit-test.sh
     full-test:
@@ -16,6 +37,27 @@ jobs:
         steps:
           - uses: actions/checkout@v2
           - name: Checkout submodules
-            run : git submodule update --init --recursive
-          - name: Run unit test
+            run: git submodule update --init --recursive
+          - name: Install build dependencies
+            run: |
+              apt-get update
+              apt-get install -y \
+                flex \
+                bison \
+                build-essential \
+                libssl-dev \
+                libelf-dev \
+                bc \
+                cpio \
+                gzip \
+                kmod \
+                libncurses-dev \
+                wget \
+                git \
+                make \
+                gcc \
+                g++ \
+                gcc-aarch64-linux-gnu \
+                binutils-aarch64-linux-gnu
+          - name: Run full test
             run: ./full-test.sh
