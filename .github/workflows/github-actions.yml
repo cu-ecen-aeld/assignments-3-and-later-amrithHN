@@ -32,7 +32,7 @@ jobs:
           - name: Run unit test
             run: ./unit-test.sh
     full-test:
-        container: cuaesd/aesd-autotest:24-unit-test
+        container: cuaesd/aesd-autotest:24-assignment3
         runs-on: ubuntu-latest
         steps:
           - uses: actions/checkout@v2
@@ -56,6 +56,11 @@ jobs:
                 git \
                 make \
                 gcc \
+                g++ \
+                gcc-aarch64-linux-gnu \
+                binutils-aarch64-linux-gnu
+          - name: Run full test
+            run: ./full-test.sh
                 g++ \
                 gcc-aarch64-linux-gnu \
                 binutils-aarch64-linux-gnu
